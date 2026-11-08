@@ -1969,7 +1969,9 @@ renderer.domElement.addEventListener('pointerdown',e=>{
   const q=hits[0].point;
   for(const f of KITCHEN_SCENE.furniture)
    if(q.x>f.x-f.sx/2-0.08&&q.x<f.x+f.sx/2+0.08&&q.y>f.y-f.sy/2-0.08&&q.y<f.y+f.sy/2+0.08
-      &&q.z>f.z0-0.1&&q.z<f.z0+f.sz+0.35){ED.setSel(f);ED.startCarry(f,e);e.stopImmediatePropagation();e.preventDefault();return;}
+      &&q.z>f.z0-0.1&&q.z<f.z0+f.sz+0.35){ED.setSel(f);
+      if(e.pointerType!=='mouse')edTouchDown={f,x:e.clientX,y:e.clientY};else ED.startCarry(f,e);
+      e.stopImmediatePropagation();e.preventDefault();return;}
  }
 },true);
 addEventListener('pointermove',e=>{
@@ -2071,6 +2073,15 @@ renderer.domElement.addEventListener('pointerdown',e=>{
  e.stopImmediatePropagation();e.preventDefault();
 },true);
 addEventListener('pointerup',e=>{if(EDIT_ON&&ED.carry&&ED.carry._justPicked){ED.carry._justPicked=false;e.stopImmediatePropagation();}},true);
+let edTouchDown=null;                             
+addEventListener('pointermove',e=>{
+ if(!EDIT_ON||!edTouchDown||ED.carry)return;
+ if(Math.hypot(e.clientX-edTouchDown.x,e.clientY-edTouchDown.y)>10){
+  const d=edTouchDown;edTouchDown=null;ED.startCarry(d.f,e);
+  ED.carry.sx=d.x;ED.carry.sy=d.y;ED.carry.dragged=true;ED.carry._justPicked=false;edCarryTo(e);}
+ e.stopImmediatePropagation();},true);
+addEventListener('pointerup',e=>{if(edTouchDown){edTouchDown=null;e.stopImmediatePropagation();}},true);
+addEventListener('pointercancel',()=>{edTouchDown=null;if(ED.carry&&ED.carry.dragged)edEndCarry(false);},true);
 addEventListener('keydown',e=>{if(e.key==='Escape'&&ED.carry)edEndCarry(true);});
 let composer=null,__postW=0,__postH=0;
 (function(){try{
