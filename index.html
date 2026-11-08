@@ -1792,7 +1792,7 @@ const ED={sel:null,selWall:null,hidden:[],snap:null,meshSnap:null,card:null,tagL
   d.style.cssText='position:absolute;top:58px;z-index:9;display:none;color:#a39a8c;font:11.5px system-ui;'
    +'background:rgba(27,24,20,.85);border:1px solid #4a4336;border-radius:5px;padding:2px 8px;'+st;
   d.textContent=txt;V.appendChild(d);return d;};
- ED.tagL=mk('clean model — orbit, click to select','left:12px');
+ ED.tagL=mk('clean model — double-tap an object to select it · drag it to move','left:12px');
  ED.tagR=mk('miniature — drag turns the model · click selects · arrows move','left:calc(62% + 10px)');
  (function(){
   const rr=document.createElement('div');
@@ -2018,7 +2018,7 @@ renderer.domElement.addEventListener('pointerdown',e=>{
   const pt=rc.ray.intersectBox(bx,new THREE.Vector3());if(!pt)continue;
   const d=pt.distanceTo(rc.ray.origin);if(d<best&&d<=first+0.06){best=d;f=g;}}
  if(f&&f===ED.sel){edTouchDown={f,x:e.clientX,y:e.clientY};e.stopImmediatePropagation();e.preventDefault();return;}
- edTapDown={f,x:e.clientX,y:e.clientY};                         
+ edTapDown={f,x:e.clientX,y:e.clientY,t:performance.now()};   
 },true);
 addEventListener('pointermove',e=>{
  if(!EDIT_ON)return;
@@ -2121,8 +2121,13 @@ renderer.domElement.addEventListener('pointerdown',e=>{
 },true);
 addEventListener('pointerup',e=>{if(EDIT_ON&&ED.carry&&ED.carry._justPicked){ED.carry._justPicked=false;e.stopImmediatePropagation();}},true);
 let edTouchDown=null,edTapDown=null;              
+let edLastTap=null;                               
 addEventListener('pointerup',e=>{if(!EDIT_ON||!edTapDown)return;const d=edTapDown;edTapDown=null;
- if(Math.hypot(e.clientX-d.x,e.clientY-d.y)<6&&!ED.carry)ED.setSel(d.f);},true);
+ const now=performance.now();
+ if(ED.carry||Math.hypot(e.clientX-d.x,e.clientY-d.y)>15||now-d.t>600){edLastTap=null;return;}   
+ const L=edLastTap;
+ if(L&&now-L.t<450&&Math.hypot(d.x-L.x,d.y-L.y)<40){edLastTap=null;ED.setSel(d.f||L.f||null);}
+ else edLastTap={f:d.f,x:d.x,y:d.y,t:now};},true);
 addEventListener('pointermove',e=>{
  if(!EDIT_ON||!edTouchDown||ED.carry)return;
  if(Math.hypot(e.clientX-edTouchDown.x,e.clientY-edTouchDown.y)>10){
