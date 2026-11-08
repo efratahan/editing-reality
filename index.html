@@ -1723,11 +1723,11 @@ const ED={sel:null,selWall:null,hidden:[],snap:null,meshSnap:null,card:null,tagL
  ED.planCam=new THREE.OrthographicCamera(-1,1,1,-1,0.1,50);
  ED.planCam.position.set(ED.planCX,ED.planCY,20);ED.planCam.up.set(0,1,0);
  ED.planCam.lookAt(ED.planCX,ED.planCY,0);
- ED.hl3d=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),
-   new THREE.MeshBasicMaterial({color:0xffb347,wireframe:true,depthTest:false}));
+ ED.hl3d=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1,1,1)),
+   new THREE.LineBasicMaterial({color:0xffb347,depthTest:false,transparent:true,opacity:0.95}));   
  ED.hl3d.visible=false;ED.hl3d.renderOrder=999;scene.add(ED.hl3d);
- ED.hlPlan=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),
-   new THREE.MeshBasicMaterial({color:0xcc7a10,wireframe:true,depthTest:false}));
+ ED.hlPlan=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1,1,1)),
+   new THREE.LineBasicMaterial({color:0xcc7a10,depthTest:false}));
  ED.hlPlan.position.z=0.07;ED.hlPlan.visible=false;ED.hlPlan.renderOrder=999;scene.add(ED.hlPlan);
  ED.planLight=new THREE.AmbientLight(0xffffff,0.92);ED.planLight.visible=false;scene.add(ED.planLight);
  ED.planSun=new THREE.DirectionalLight(0xffffff,0.62);ED.planSun.position.set(4,-3,9);
@@ -1845,6 +1845,53 @@ const ED={sel:null,selWall:null,hidden:[],snap:null,meshSnap:null,card:null,tagL
    ED.hl3d.scale.set(L,0.12,2.6);ED.hl3d.position.set(cx,cy,1.3);ED.hl3d.rotation.z=ang;
    ED.hlPlan.scale.set(L,0.12,2.6);ED.hlPlan.position.set(cx,cy,ZF+1.3);ED.hlPlan.rotation.z=ang;}
  }
+ ED.foot=new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.MeshBasicMaterial({color:0x3fbf6a,transparent:true,opacity:0.35,depthTest:false,side:THREE.DoubleSide}));
+ ED.foot.visible=false;ED.foot.renderOrder=998;scene.add(ED.foot);
+ ED.footEdge=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.PlaneGeometry(1,1)),new THREE.LineBasicMaterial({color:0x3fbf6a,depthTest:false}));
+ ED.footEdge.visible=false;ED.footEdge.renderOrder=999;scene.add(ED.footEdge);
+ const ovl=(f,g)=>Math.min(f.x+f.sx/2,g.x+g.sx/2)-Math.max(f.x-f.sx/2,g.x-g.sx/2)>0.02&&Math.min(f.y+f.sy/2,g.y+g.sy/2)-Math.max(f.y-f.sy/2,g.y-g.sy/2)>0.02
+   &&Math.min(f.z0+f.sz,g.z0+g.sz)-Math.max(f.z0,g.z0)>0.02;
+ const BUILTIN=[];KITCHEN_SCENE.furniture.forEach((f,i)=>KITCHEN_SCENE.furniture.forEach((g,j)=>{if(i<j&&ovl(f,g))BUILTIN.push([f,g]);}));
+ const builtin=(f,g)=>BUILTIN.some(([a,b])=>(a===f&&b===g)||(a===g&&b===f));
+ function fits(f){
+  const fl=PLANES.find(q=>q.kind==='floor');
+  if(fl&&(f.x-f.sx/2<fl.lo[0]-0.02||f.x+f.sx/2>fl.hi[0]+0.02||f.y-f.sy/2<fl.lo[1]-0.02||f.y+f.sy/2>fl.hi[1]+0.02))return false;
+  for(const g of KITCHEN_SCENE.furniture){if(g===f)continue;
+   const ox=Math.min(f.x+f.sx/2,g.x+g.sx/2)-Math.max(f.x-f.sx/2,g.x-g.sx/2);
+   const oy=Math.min(f.y+f.sy/2,g.y+g.sy/2)-Math.max(f.y-f.sy/2,g.y-g.sy/2);
+   const oz=Math.min(f.z0+f.sz,g.z0+g.sz)-Math.max(f.z0,g.z0);
+   if(ox>0.02&&oy>0.02&&oz>0.02&&!builtin(f,g))return false;}
+  return true;}
+ ED.fits=fits;
+ const bar=document.createElement('div');bar.id='edBar';
+ bar.style.cssText='position:absolute;z-index:12;display:none;gap:6px;transform:translate(-50%,-100%);'
+  +'background:rgba(24,21,17,.92);border:1px solid #5a4a30;border-radius:22px;padding:5px;box-shadow:0 4px 14px rgba(0,0,0,.35)';
+ const bb=(lab,title,fn)=>{const b=document.createElement('button');b.textContent=lab;b.title=title;b.setAttribute('aria-label',title);
+  b.style.cssText='font:15px system-ui;width:40px;height:40px;border-radius:20px;border:1px solid #7a6336;background:#2a2620;color:#f2c178;cursor:pointer;touch-action:manipulation';
+  b.addEventListener('pointerdown',e=>e.stopPropagation(),true);b.onclick=e=>{e.stopPropagation();fn();};bar.appendChild(b);return b;};
+ bb('\u27f3','rotate',()=>{const r=ED.card.querySelector('#edRot');if(r&&!r.disabled)r.click();});
+ bb('\u2715','delete',()=>{const d=ED.card.querySelector('#edDel');if(d&&!d.disabled)d.click();});
+ bb('\u2713','done',()=>{setSel(null);});
+ document.getElementById('view').appendChild(bar);ED.bar=bar;
+ function placeBar(){
+  const f=ED.sel;if(!f||!EDIT_ON||ED.carry){bar.style.display='none';return;}
+  const sp=edSplit(),r=sp.r;
+  const fa=cam.aspect;cam.aspect=(r.width*0.62)/r.height;cam.updateProjectionMatrix();
+  const v=new THREE.Vector3(f.x,f.y,f.z0+f.sz+0.08).project(cam);cam.aspect=fa;cam.updateProjectionMatrix();
+  if(v.z>1){bar.style.display='none';return;}
+  const vr=document.getElementById('view').getBoundingClientRect();
+  const x=r.left-vr.left+(v.x+1)/2*r.width*0.62, y=r.top-vr.top+(1-v.y)/2*r.height;
+  bar.style.display='flex';bar.style.left=Math.max(70,Math.min(r.width*0.62-70,x))+'px';bar.style.top=Math.max(56,y-6)+'px';
+ }
+ (function loop(){placeBar();requestAnimationFrame(loop);})();
+ const _sync=syncHl;
+ syncHl=function(){_sync();
+  const f=ED.sel,on=!!f&&EDIT_ON;ED.foot.visible=on;ED.footEdge.visible=on;
+  if(on){const ok=fits(f),c=ok?0x3fbf6a:0xe0503c;
+   ED.foot.material.color.setHex(c);ED.footEdge.material.color.setHex(c);
+   for(const o of [ED.foot,ED.footEdge]){o.scale.set(f.sx+0.04,f.sy+0.04,1);o.position.set(f.x,f.y,f.z0+0.006);}
+   if(ED.carry){ED.foot.position.z+=0;}}
+ };
  ED.setSel=setSel;ED.setSelWall=setSelWall;ED.syncHl=syncHl;
  function nudge(ax,ay){
   ED.snapNow();
@@ -2049,13 +2096,14 @@ ED.startCarry=function(f,e){
 };
 function edCarryTo(e){
  const C=ED.carry,f=C.f,p=edCursorPoint(e,f.z0);
- f.x=+(p[0]+C.off[0]).toFixed(3);f.y=+(p[1]+C.off[1]).toFixed(3);
+ f.x=+(Math.round((p[0]+C.off[0])/0.05)*0.05).toFixed(3);f.y=+(Math.round((p[1]+C.off[1])/0.05)*0.05).toFixed(3);   
  const dx=f.x-C.x0,dy=f.y-C.y0;
  C.ms.forEach(m=>{m.o.position.x=m.p.x+dx;m.o.position.y=m.p.y+dy;});
  ED.syncHl();ED.hl3d.position.z+=0.12;
 }
 function edEndCarry(cancel){
  const C=ED.carry;if(!C)return;ED.carry=null;
+ if(!cancel&&ED.fits&&!ED.fits(C.f))cancel=true;          
  if(cancel){C.f.x=C.x0;C.f.y=C.y0;}
  const dx=C.f.x-C.x0,dy=C.f.y-C.y0;
  C.ms.forEach(m=>{m.o.position.set(m.p.x+dx,m.p.y+dy,m.p.z);});  
@@ -2102,7 +2150,8 @@ const ED_BG_R=new THREE.Color(0xdfe4ea);
   if(ED.card)ED.card.style.display='none';
   if(ED.tagL){ED.tagL.style.display='none';ED.tagR.style.display='none';ED.div.style.display='none';}
   if(ED.rotBtns)ED.rotBtns.style.display='none';
-  if(ED.hl3d){ED.hl3d.visible=false;ED.hlPlan.visible=false;}
+  if(ED.hl3d){ED.hl3d.visible=false;ED.hlPlan.visible=false;if(ED.foot){ED.foot.visible=false;ED.footEdge.visible=false;}}
+  if(ED.bar)ED.bar.style.display='none';
   if(ED.miniEd)ED.miniEd.visible=false;   
   if(composer&&STYLE_STAGED){
    if(__postW!==c.clientWidth||__postH!==c.clientHeight){
@@ -2118,7 +2167,7 @@ const ED_BG_R=new THREE.Color(0xdfe4ea);
  const bg=scene.background;
  renderer.setScissorTest(true);
  const SEL=!!ED.sel||!!ED.selWall;
- scene.children.forEach(o=>{o.visible=(o===twin)||(o===ED.hl3d&&SEL)||!!o.isLight&&o!==ED.planLight&&o!==ED.planSun;});
+ scene.children.forEach(o=>{o.visible=(o===twin)||(o===ED.hl3d&&SEL)||((o===ED.foot||o===ED.footEdge)&&!!ED.sel)||!!o.isLight&&o!==ED.planLight&&o!==ED.planSun;});
  ED.hlPlan.visible=false;ED.planLight.visible=false;ED.planSun.visible=false;
  const fullAsp=cam.aspect;
  cam.aspect=SX/H;cam.updateProjectionMatrix();
