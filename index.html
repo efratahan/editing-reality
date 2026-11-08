@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Editing Reality</title>
 <style>
 :root{--bg:#171512;--panel:#201d19;--edge:#332e27;--text:#ece7df;--muted:#a39a8c;--accent:#ffb347;}
@@ -25,6 +26,9 @@ header p{margin:0;color:var(--muted);font-size:12.5px}
 <p>Efrat Dahan · worked example: a kitchen, from one 93-second handheld video</p></header>
 <div id=chips style="display:none"></div>
 <div id=view><div id=hint>drag to turn · scroll to move in and out · right-drag to slide · click object = delete/restore</div>
+<script>
+try{if(matchMedia("(pointer:coarse)").matches)document.getElementById("hint").textContent="drag to turn · pinch to zoom · two fingers to slide";}catch(e){}
+</script>
 <div class=tog><button id=tPts class=on style="display:none">scan mesh</button><button id=tView class=on style="display:none">showing: textured</button><button id=tTex style="display:none">photo planes</button><button id=tReno style="display:none">walls: photo</button><button id=tTwin style="display:none">room: scan</button></div></div>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -1246,15 +1250,29 @@ tW.onclick=()=>{
   applyScan();};
 })();
 let footGroup=null,partsCam=null;
+(function(){                                        
+ const lg=document.createElement('div');lg.id='planKey';
+ lg.style.cssText='position:absolute;left:12px;top:12px;z-index:6;display:none;background:rgba(32,29,25,.92);border:1px solid #4a4336;'
+  +'border-radius:10px;padding:10px 12px;font:13px/1.2 system-ui;color:#e8e0d2;max-width:min(240px,60vw)';
+ const sw=(c,txt,line)=>'<div style="display:flex;align-items:center;gap:8px;margin:5px 0"><span style="flex:none;width:'+(line?'22px;height:5px':'14px;height:14px')
+  +';border-radius:2px;background:'+c+'"></span>'+txt+'</div>';
+ lg.innerHTML='<div style="font:600 13px system-ui;color:#f2c178;margin-bottom:4px">floor plan, from the video</div>'
+  +sw('#3c382f','wall',1)+sw('#7fc4de','window',1)+sw('#e2a765','counter and cabinets')+sw('#26282b','oven')
+  +sw('#f4f3ef','fridge')+sw('#a3693a','shelf')+sw('#c08b4f','chair')
+  +'<div style="margin-top:7px;color:#a39a8c;font-size:12px">lengths in metres, measured</div>';
+ const add_=()=>{const v=document.getElementById('view');if(v)v.appendChild(lg);else setTimeout(add_,200);};add_();
+ setInterval(()=>{const ov=document.getElementById('partsGrid')||null;
+  lg.style.display=(typeof PARTS_MODE!=='undefined'&&PARTS_MODE===1&&!(typeof EDIT_ON!=='undefined'&&EDIT_ON)&&!document.querySelector('[data-parts-open="1"]'))?'block':'none';},250);
+})();
 function buildFootprint(){
  footGroup=new THREE.Group(); footGroup.visible=false; scene.add(footGroup);
  const add=(w,d,x,y,c,z,h)=>{const o=new THREE.Mesh(new THREE.BoxGeometry(w,d,h||0.02),
   new THREE.MeshBasicMaterial({color:c}));o.position.set(x,y,z||0.02);footGroup.add(o);return o;};
  add(4.6,5.0,2.0,2.23,0xf2efe8,0.001,0.002);                    
- const lbl=(txt,x,y,ang,big)=>{
+ const lbl=(txt,x,y,ang,big,col)=>{
   const c=document.createElement('canvas');c.width=512;c.height=96;
   const g=c.getContext('2d');g.font='600 52px system-ui';
-  g.fillStyle='#4a4336';g.textAlign='center';g.textBaseline='middle';
+  g.fillStyle=col||'#4a4336';g.textAlign='center';g.textBaseline='middle';
   g.fillText(txt,256,48);
   const t=new THREE.CanvasTexture(c);
   const w=big?0.95:0.72;
@@ -1279,7 +1297,12 @@ function buildFootprint(){
   o.rotation.z=Math.atan2(dy,dx);}
  KITCHEN_SCENE.furniture.filter(f=>f.z0<0.3).forEach((f,fi)=>{
   f._fp=add(f.sx,f.sy,f.x,f.y,SCENE_COLORS[f.label]!==undefined?SCENE_COLORS[f.label]:0x999999,
-      0.028+0.004*fi,0.004);});                                    
+      0.028+0.004*fi,0.004);
+  const nm=PLAN_NAMES[f.label];
+  if(nm){const L_=lbl(nm,f.x,f.y,f.sy>f.sx*1.4?Math.PI/2:0,false,(f.label==='oven')?'#f2efe8':'#3a332a');L_.position.z=0.06;
+   L_.scale.setScalar(Math.min(1.05,Math.max(f.sx,f.sy)/0.75));}});
+ for(const O of KITCHEN_SCENE.openings){const L_=lbl(O.kind==='door'?'door':'window',O.center[0]-0.22,O.center[1],Math.PI/2,false,'#3d7f99');
+  L_.position.z=0.06;L_.scale.setScalar(0.95);}                                    
 }
 let miniGroup=null;
 function buildMiniature(){
@@ -1473,7 +1496,8 @@ function applyParts(keepView){
  texObjs.forEach(m=>m.visible=(PARTS_MODE===0)&&tT.classList.contains('on')&&!TWIN_ON);
  applyScan();
  if(!keepView){   
- if(fp){tgt.set(2.0,2.23,0);dist=5.4;yaw=-Math.PI/2;pitch=1.44;place();}
+ const narrow=innerWidth<innerHeight?Math.min(2.2,innerHeight/innerWidth):1;   
+ if(fp){tgt.set(2.0,2.23,0);dist=5.4*narrow;yaw=-Math.PI/2;pitch=1.44;place();}
  if(PARTS_MODE===3){tgt.set(2.75,0.6,0.85);dist=2.95;yaw=Math.PI/2;pitch=0.26;place();}
  if(mini){tgt.set(2.45,2.10,0.30);dist=2.2;yaw=-1.05;pitch=0.82;place();}
  }  
@@ -1499,6 +1523,7 @@ const KITCHEN_SCENE={
   {label:'appliance',   x:1.75, y:1.625,ang:0,sx:0.40,sy:0.65,sz:0.45,z0:1.11},
   {label:'shelf',       x:2.88, y:3.865,ang:0,sx:0.34,sy:0.37,sz:1.82,z0:0.13},
   {label:'chair',       x:3.405,y:3.76, ang:0,sx:0.67,sy:0.52,sz:0.85,z0:0.13}]};
+const PLAN_NAMES={'cabinet-run':'counter',fridge:'fridge',oven:'oven',shelf:'shelf',chair:'chair'};
 const SCENE_COLORS={'cabinet-run':0xe2a765,'cabinet-upper':0xd9995c,fridge:0xf4f3ef,
  oven:0x26282b,hob:0x3a3c40,appliance:0xdedbd2,shelf:0xa3693a,chair:0xc08b4f};
 function openPhotoreal(style){
@@ -1569,13 +1594,13 @@ function openGrid(){
  let ov=document.getElementById('partsGrid');
  if(ov){ov.style.display='flex';const ce=document.getElementById('chips');if(ce)ce.style.visibility='hidden';return;}
  ov=document.createElement('div'); ov.id='partsGrid';
- ov.style.cssText='position:absolute;inset:0;z-index:40;background:rgba(16,14,11,.96);'
-  +'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px';
+ ov.style.cssText='position:absolute;inset:0;z-index:40;background:rgba(16,14,11,.96);overflow-y:auto;padding:18px 16px 28px;box-sizing:border-box;'
+  +'display:flex;flex-direction:column;align-items:center;justify-content:safe center;gap:18px';
  ov.innerHTML='<div style="font:600 20px system-ui;color:#f2c178">the kitchen, in parts</div>'
   +'<div style="font:13px system-ui;color:#b9b2a6;max-width:560px;text-align:center">one phone video \u2192 floor plan \u2192 miniature \u2192 big model \u2192 clean room \u2192 style \u2192 edit house \u2014 click a part</div>';
  const chipsEl=document.getElementById('chips'); if(chipsEl)chipsEl.style.visibility='hidden';   
  const grid=document.createElement('div');
- grid.style.cssText='display:grid;grid-template-columns:repeat(3,172px);gap:14px';
+ grid.style.cssText='display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,172px));gap:14px;width:100%;max-width:544px;justify-content:center';
  const STYLES_360=[['forest','forest360_relief'],['nordic','nordic360b'],['warm oak','warmoak360']];
  const tiles=[
   ['floorplan','floor plan',()=>{PARTS_MODE=1;applyParts();}],
@@ -1621,9 +1646,9 @@ function openGrid(){
   document.body.appendChild(o);}
  for(const[img,label,act]of tiles){
   const t=document.createElement('div');
-  t.style.cssText='width:172px;cursor:pointer;border:1px solid #4a4336;border-radius:10px;'
+  t.style.cssText='cursor:pointer;border:1px solid #4a4336;border-radius:10px;'
    +'overflow:hidden;background:#201c16';
-  t.innerHTML='<img src="parts-tiles/'+img+'.jpg" style="width:172px;height:172px;display:block;object-fit:cover">'
+  t.innerHTML='<img src="parts-tiles/'+img+'.jpg" alt="'+label+'" style="width:100%;aspect-ratio:1;display:block;object-fit:cover">'
    +'<div style="font:12px system-ui;color:#e8e0d2;padding:6px 8px 1px;text-align:center">'+label+'</div>'
    +'<div style="font:11px/1.35 system-ui;color:#a39b8e;padding:0 8px 7px;text-align:center;min-height:30px">'+(TILE_LINE[img]||'')+'</div>';
   t.onclick=()=>{window._gridPicked=true;ov.style.display='none';
@@ -1635,8 +1660,10 @@ function openGrid(){
  howBtn.setAttribute('role','button');howBtn.tabIndex=0;
  howBtn.style.cssText='font:13px system-ui;color:#e8c37a;cursor:pointer';
  const how=document.createElement('div');
- how.style.cssText='display:none;max-width:560px;max-height:62vh;overflow:auto;padding:4px 6px;font:12.5px/1.5 system-ui;color:#cfc7b8';
- how.innerHTML=HOW.map(([h,t])=>'<p style="margin:0 0 10px"><b style="color:#f2c178">'+h+'.</b> '+t+'</p>').join('');
+ how.style.cssText='display:none;width:100%;max-width:640px;padding:6px 4px 10px;font:15.5px/1.65 system-ui;color:#e6dfd3;box-sizing:border-box';
+ how.innerHTML=HOW.map(([h,t])=>'<section style="margin:0 0 22px;padding-left:14px;border-left:2px solid #5a4a30">'
+  +'<h3 style="margin:0 0 6px;font:600 16.5px/1.3 system-ui;color:#f2c178;text-wrap:balance">'+h+'</h3>'
+  +'<p style="margin:0;max-width:62ch">'+t+'</p></section>').join('');
  howBtn.onclick=()=>{const on=how.style.display==='none';how.style.display=on?'block':'none';howBtn.textContent=on?'how it was built \u2191':'how it was built \u2193';};
  howBtn.onkeydown=e=>{if(e.key==='Enter')howBtn.onclick();};
  ov.appendChild(howBtn);ov.appendChild(how);
@@ -1773,7 +1800,7 @@ const ED={sel:null,selWall:null,hidden:[],snap:null,meshSnap:null,card:null,tagL
   +'background:rgba(27,24,20,.93);border:1px solid #4a4336;border-radius:9px;padding:10px 13px;'
   +'font:12.5px system-ui;color:#ece7df;backdrop-filter:blur(4px)';
  ED.card.innerHTML='<div id=edName style="font-size:15px;font-weight:600;min-height:20px">'
-  +'<span style="color:#a39a8c;font-weight:400;font-size:13px">click an object — either view</span></div>'
+  +'<span style="color:#a39a8c;font-weight:400;font-size:13px">double-tap an object or a wall — either view</span></div>'
   +'<div id=edMeta style="color:#a39a8c;font-size:11.5px;margin-top:2px;min-height:15px"></div>'
   +'<div style="display:flex;gap:6px;margin-top:9px">'
   +'<button id=edRot disabled>⟳ rotate</button><button id=edDel disabled>delete</button>'
@@ -1782,8 +1809,8 @@ const ED={sel:null,selWall:null,hidden:[],snap:null,meshSnap:null,card:null,tagL
   +'<button id=edML disabled>◀</button><button id=edMU disabled>▲</button>'
   +'<button id=edMD disabled>▼</button><button id=edMR disabled>▶</button>'
   +'<span style="color:#8d8678;font-size:11px;margin-left:6px">move 5 cm · a wall carries its furniture</span></div>'
-  +'<div style="color:#8d8678;font-size:11px;margin-top:8px;line-height:1.8">right pane: drag turns the model · '
-  +'click an object or a wall, move it with the arrows<br>left pane: orbit · click selects</div>';
+  +'<div style="color:#8d8678;font-size:11px;margin-top:8px;line-height:1.8">double-tap selects · drag the selected object to move it · '
+  +'the arrows move it 5 cm<br>drag anywhere else to turn the view · Esc or ↺ reset room undoes</div>';
  V.appendChild(ED.card);
  ED.card.querySelectorAll('button').forEach(b=>b.style.cssText=
   'background:#2a2620;border:1px solid #4a4336;color:#ece7df;border-radius:6px;'
@@ -1793,7 +1820,7 @@ const ED={sel:null,selWall:null,hidden:[],snap:null,meshSnap:null,card:null,tagL
    +'background:rgba(27,24,20,.85);border:1px solid #4a4336;border-radius:5px;padding:2px 8px;'+st;
   d.textContent=txt;V.appendChild(d);return d;};
  ED.tagL=mk('clean model — double-tap an object to select it · drag it to move','left:12px');
- ED.tagR=mk('miniature — drag turns the model · click selects · arrows move','left:calc(62% + 10px)');
+ ED.tagR=mk('miniature — double-tap to select · drag it to move · drag elsewhere to turn','left:calc(62% + 10px)');
  (function(){
   const rr=document.createElement('div');
   rr.style.cssText='position:absolute;right:12px;bottom:12px;z-index:9;display:none;gap:6px';
@@ -1818,7 +1845,7 @@ const ED={sel:null,selWall:null,hidden:[],snap:null,meshSnap:null,card:null,tagL
   if(f){n.textContent=f.label;
    m.textContent=f.sx.toFixed(2)+' × '+f.sy.toFixed(2)+' × '+f.sz.toFixed(2)+' m';
    ED.card.querySelector('#edRot').disabled=false;ED.card.querySelector('#edDel').disabled=false;movePad(true);
-  }else{n.innerHTML='<span style="color:#a39a8c;font-weight:400;font-size:13px">click an object or a wall</span>';
+  }else{n.innerHTML='<span style="color:#a39a8c;font-weight:400;font-size:13px">double-tap an object or a wall</span>';
    m.textContent='';ED.card.querySelector('#edRot').disabled=true;ED.card.querySelector('#edDel').disabled=true;movePad(false);}
   syncHl();
  }
@@ -2003,6 +2030,7 @@ renderer.domElement.addEventListener('pointerdown',e=>{
   e.stopImmediatePropagation();e.preventDefault();return;}
  if(e.button!==0)return;
  if(e.clientX>=sx){  
+  if(ED.sel&&edMiniPick(e).best===ED.sel){edTouchDown={f:ED.sel,x:e.clientX,y:e.clientY};e.stopImmediatePropagation();e.preventDefault();return;}
   edPaneDown={x:e.clientX,y:e.clientY,yaw:ED.planYaw,pitch:ED.planPitch,moved:false};
   e.stopImmediatePropagation();e.preventDefault();return;
  }
@@ -2029,7 +2057,7 @@ addEventListener('pointermove',e=>{
  }
  if(edPaneDown){
   const dx=e.clientX-edPaneDown.x,dy=e.clientY-edPaneDown.y;
-  if(Math.abs(dx)+Math.abs(dy)>3)edPaneDown.moved=true;
+  if(Math.abs(dx)+Math.abs(dy)>10)edPaneDown.moved=true;     
   if(edPaneDown.moved){
    ED.planYaw=edPaneDown.yaw-dx*0.008;
    ED.planPitch=Math.max(0.3,Math.min(1.45,edPaneDown.pitch+dy*0.006));
@@ -2037,31 +2065,38 @@ addEventListener('pointermove',e=>{
   e.stopImmediatePropagation();return;
  }
 },true);
+let edLastTapR=null;
+function edMiniPick(e){
+   ED.ensureMini();
+ const mh=edPlanRay(e).intersectObjects(ED.miniEd?[ED.miniEd]:[],true)
+   .filter(h=>h.object.visible)[0];
+ const p=mh?[mh.point.x,mh.point.y]:edPlanPoint(e,0);
+ const pz=mh?mh.point.z-ZF:null;
+ let best=null;
+ if(mh&&mh.object.userData._f&&KITCHEN_SCENE.furniture.includes(mh.object.userData._f))
+  best=mh.object.userData._f;
+ else{
+  let bestZ=null;
+  for(const f of KITCHEN_SCENE.furniture){
+   if(!(Math.abs(p[0]-f.x)<=f.sx/2+0.04&&Math.abs(p[1]-f.y)<=f.sy/2+0.04))continue;
+   if(pz!==null&&pz>=f.z0-0.06&&pz<=f.z0+f.sz+0.06){
+    if(!bestZ||f.sx*f.sy<bestZ.sx*bestZ.sy)bestZ=f;}
+   if(!best||f.sx*f.sy<best.sx*best.sy)best=f;
+  }
+  best=bestZ||best;
+ }
+ return {best,p};}
 addEventListener('pointerup',e=>{
  if(!EDIT_ON)return;
  if(edViewRot){edViewRot=null;e.stopImmediatePropagation();return;}
  if(edPaneDown){
   const was=edPaneDown;edPaneDown=null;
   if(!was.moved){                       
-   ED.ensureMini();
-   const mh=edPlanRay(e).intersectObjects(ED.miniEd?[ED.miniEd]:[],true)
-     .filter(h=>h.object.visible)[0];
-   const p=mh?[mh.point.x,mh.point.y]:edPlanPoint(e,0);
-   const pz=mh?mh.point.z-ZF:null;
-   let best=null;
-   if(mh&&mh.object.userData._f&&KITCHEN_SCENE.furniture.includes(mh.object.userData._f))
-    best=mh.object.userData._f;
-   else{
-    let bestZ=null;
-    for(const f of KITCHEN_SCENE.furniture){
-     if(!(Math.abs(p[0]-f.x)<=f.sx/2+0.04&&Math.abs(p[1]-f.y)<=f.sy/2+0.04))continue;
-     if(pz!==null&&pz>=f.z0-0.06&&pz<=f.z0+f.sz+0.06){
-      if(!bestZ||f.sx*f.sy<bestZ.sx*bestZ.sy)bestZ=f;}
-     if(!best||f.sx*f.sy<best.sx*best.sy)best=f;
-    }
-    best=bestZ||best;
-   }
-   if(best){ED.setSel(best);ED.startCarry(best,e);}
+   const {best,p}=edMiniPick(e);
+   const now=performance.now(),L=edLastTapR;      
+   if(!(L&&now-L.t<450&&Math.hypot(e.clientX-L.x,e.clientY-L.y)<40)){edLastTapR={x:e.clientX,y:e.clientY,t:now};e.stopImmediatePropagation();return;}
+   edLastTapR=null;
+   if(best){ED.setSel(best);}
    else{
     let wallHit=null;
     for(const W of KITCHEN_SCENE.walls){
@@ -2109,7 +2144,8 @@ function edEndCarry(cancel){
  rebuildMirrors();ED.syncHl();
 }
 addEventListener('pointermove',e=>{if(EDIT_ON&&ED.carry){
- const C=ED.carry;if(C.sx===undefined){C.sx=e.clientX;C.sy=e.clientY;}
+ const C=ED.carry;if(!e.buttons){edEndCarry(false);e.stopImmediatePropagation();return;}   
+ if(C.sx===undefined){C.sx=e.clientX;C.sy=e.clientY;}
  if(e.buttons&&Math.hypot(e.clientX-C.sx,e.clientY-C.sy)>8)C.dragged=true;   
  edCarryTo(e);e.stopImmediatePropagation();}},true);
 addEventListener('pointerup',e=>{if(EDIT_ON&&ED.carry&&ED.carry.dragged){
