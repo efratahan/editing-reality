@@ -2059,7 +2059,12 @@ function edEndCarry(cancel){
  C.ms.forEach(m=>{m.o.position.set(m.p.x+dx,m.p.y+dy,m.p.z);});  
  rebuildMirrors();ED.syncHl();
 }
-addEventListener('pointermove',e=>{if(EDIT_ON&&ED.carry){edCarryTo(e);e.stopImmediatePropagation();}},true);
+addEventListener('pointermove',e=>{if(EDIT_ON&&ED.carry){
+ const C=ED.carry;if(C.sx===undefined){C.sx=e.clientX;C.sy=e.clientY;}
+ if(e.buttons&&Math.hypot(e.clientX-C.sx,e.clientY-C.sy)>8)C.dragged=true;   
+ edCarryTo(e);e.stopImmediatePropagation();}},true);
+addEventListener('pointerup',e=>{if(EDIT_ON&&ED.carry&&ED.carry.dragged&&e.pointerType!=='mouse'){
+ edCarryTo(e);edEndCarry(false);e.stopImmediatePropagation();}},true);
 renderer.domElement.addEventListener('pointerdown',e=>{
  if(!EDIT_ON||!ED.carry)return;
  if(e.button===0){edCarryTo(e);edEndCarry(false);}else edEndCarry(true);
