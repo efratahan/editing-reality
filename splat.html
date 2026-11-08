@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kitchen Splat</title>
+<style>
+:root{--bg:#101412;--ink:#e3e8e3;--dim:#98a39b;--chip:rgba(0,0,0,.5);--on:#2f5d46}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:13px system-ui,sans-serif}
+#view{position:absolute;inset:0}
+.top{position:absolute;left:12px;top:10px;right:12px;display:flex;gap:10px;align-items:flex-start;pointer-events:none}
+.box{background:var(--chip);padding:6px 10px;border-radius:6px;max-width:62ch;line-height:1.45}
+.hint{position:absolute;left:12px;bottom:10px;background:var(--chip);padding:4px 9px;border-radius:5px;color:var(--dim)}
+.layers{position:absolute;left:50%;transform:translateX(-50%);bottom:10px;display:none;gap:6px;background:var(--chip);padding:6px;border-radius:8px}
+.layers button{font:13px system-ui;padding:5px 11px;border-radius:6px;border:1px solid #4d5a52;background:transparent;color:var(--ink);cursor:pointer}
+.layers button[aria-pressed="true"]{background:var(--on);border-color:var(--on)}
+.layers button:focus-visible{outline:2px solid #7fb898;outline-offset:2px}
+</style></head>
+<body>
+<div id="view"></div>
+<div class="top"><div class="box" id="msg">loading…</div></div>
+<div class="layers" id="layers" role="group" aria-label="Layers">
+  <button id="lSplat" aria-pressed="false">splat</button>
+  <button id="lPts" aria-pressed="false">scan points</button>
+  <button id="lBoth" aria-pressed="true">both</button>
+</div>
+<div class="hint">drag to turn · scroll to move in and out · right-drag to slide</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import * as GaussianSplats3D from 'https://cdn.jsdelivr.net/npm/@mkkellogg/gaussian-splats-3d@0.4.6/build/gaussian-splats-3d.module.js';
+const msg=document.getElementById('msg');
+const scene=new URLSearchParams(location.search).get('s')||'scan';
+async function loadPoints(url){
+  const ab=await fetch(url).then(r=>{if(!r.ok)throw new Error(url+' '+r.status);return r.arrayBuffer();});
+  const dv=new DataView(ab);const n=dv.getUint32(4,true);
+  const q=new Int16Array(ab,8,n*3),c=new Uint8Array(ab,8+n*6,n*3);
+  const pos=new Float32Array(n*3),col=new Float32Array(n*3);
+  for(let i=0;i<n*3;i++){pos[i]=q[i]/1000;col[i]=c[i]/255;}
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(pos,3));g.setAttribute('color',new THREE.BufferAttribute(col,3));
+  return new THREE.Points(g,new THREE.PointsMaterial({size:0.012,vertexColors:true}));
+}
+try{
+  const man=await fetch(`splat_${scene}.json`).then(r=>{if(!r.ok)throw new Error('no scene '+scene);return r.json();});
+  msg.innerHTML=`<b>${man.title}</b> · loading ${man.gaussians.toLocaleString()} gaussians…`;
+  const parts=await Promise.all(man.parts.map(u=>fetch(u).then(r=>{if(!r.ok)throw new Error(u+' '+r.status);return r.json();})));
+  const chunks=parts.map(p=>Uint8Array.from(atob(p.b64),c=>c.charCodeAt(0)));
+  const url=URL.createObjectURL(new Blob(chunks,{type:'application/octet-stream'}));
+  const three=new THREE.Scene();
+  let pts=null;
+  if(man.points){pts=await loadPoints(man.points);three.add(pts);}
+  let fills=null;const fillMats=[];
+  if(man.fills){fills=new THREE.Group();
+    for(const f of man.fills){const q=f.quad;
+      const g=new THREE.BufferGeometry();
+      g.setAttribute('position',new THREE.BufferAttribute(new Float32Array([...q[0],...q[1],...q[2],...q[0],...q[2],...q[3]]),3));
+      const own=new THREE.Color(f.color[0]/255,f.color[1]/255,f.color[2]/255);
+      const flag=new THREE.Color(f.grade==='weak'?0xe6aa32:0xd23c3c);
+      const mat=new THREE.MeshBasicMaterial({color:own.clone(),side:THREE.DoubleSide,polygonOffset:!!man.mesh,polygonOffsetFactor:12,polygonOffsetUnits:40});
+      fillMats.push([mat,own,flag,f.grade]);fills.add(new THREE.Mesh(g,mat));}
+    three.add(fills);}
+  let base=fills;
+  if(man.mesh){
+    const [ab,tex]=await Promise.all([fetch(man.mesh.geometry).then(r=>{if(!r.ok)throw new Error(man.mesh.geometry+' '+r.status);return r.arrayBuffer();}),
+      new THREE.TextureLoader().loadAsync(man.mesh.atlas)]);
+    const dv=new DataView(ab);const nv=dv.getUint32(8,true),nf=dv.getUint32(12,true);let o=16;
+    const mp=new Int16Array(ab,o,nv*3);o+=nv*6;const mu=new Uint16Array(ab,o,nv*2);o+=nv*4;o+=nv*3;o=(o+3)&~3;
+    const mi=new Uint32Array(ab,o,nf*3);
+    const pos=new Float32Array(nv*3),uv=new Float32Array(nv*2);
+    for(let i=0;i<nv*3;i++)pos[i]=mp[i]/1000;for(let i=0;i<nv*2;i++)uv[i]=mu[i]/65535;
+    const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(pos,3));
+    g.setAttribute('uv',new THREE.BufferAttribute(uv,2));g.setIndex(new THREE.BufferAttribute(mi,1));
+    tex.flipY=false;tex.colorSpace=THREE.NoColorSpace;tex.generateMipmaps=false;tex.minFilter=THREE.LinearFilter;
+    const mesh=new THREE.Mesh(g,new THREE.MeshBasicMaterial({map:tex,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:6,polygonOffsetUnits:12}));
+    base=new THREE.Group();base.add(mesh);if(fills)base.add(fills);three.add(base);}
+  const viewer=new GaussianSplats3D.Viewer({rootElement:document.getElementById('view'),threeScene:three,
+    cameraUp:man.cam.up,initialCameraPosition:man.cam.pos,initialCameraLookAt:man.cam.look,
+    sharedMemoryForWorkers:false,gpuAcceleratedSort:false,sphericalHarmonicsDegree:0});
+  const opts={format:GaussianSplats3D.SceneFormat.Splat,showLoadingUI:false,progressiveLoad:false};
+  if(man.place){opts.position=man.place.position;opts.rotation=man.place.rotation;opts.scale=man.place.scale;}
+  await viewer.addSplatScene(url,opts);window.__viewer=viewer;
+  viewer.start();
+  msg.innerHTML=`<b>${man.title}</b><br>${man.note}`;
+  if(pts){
+    const L=document.getElementById('layers');L.style.display='flex';
+    if(man.mesh){const b=document.createElement('button');b.id='lMesh';b.textContent='mesh only';b.setAttribute('aria-pressed','false');
+      L.insertBefore(b,document.getElementById('lPts'));b.onclick=()=>set('mesh');}
+    const set=m=>{const sm=viewer.getSplatMesh();if(sm)sm.visible=(m==='splat'||m==='both');pts.visible=(m==='pts'||m==='both');
+      if(base)base.visible=(m!=='pts');
+      [['lSplat','splat'],['lMesh','mesh'],['lPts','pts'],['lBoth','both']].forEach(([id,k])=>{const el=document.getElementById(id);if(el)el.setAttribute('aria-pressed',String(k===m));});};
+    document.getElementById('lSplat').onclick=()=>set('splat');
+    document.getElementById('lPts').onclick=()=>set('pts');
+    document.getElementById('lBoth').onclick=()=>set('both');
+    if(base)set('splat');                       
+  }
+}catch(e){msg.textContent='The splat did not load ('+e.message+'). Reload to try again.';console.error(e);}
+</script>
+</body></html>
