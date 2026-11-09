@@ -1266,35 +1266,47 @@ let footGroup=null,partsCam=null;
   +'<div style="margin-top:7px;color:#a39a8c;font-size:12px">lengths in metres, measured</div>'
   +'<button id="wsOpen" style="margin-top:9px;padding:6px 9px;border-radius:7px;border:1px solid #6b5d45;background:#2b2620;color:#f2c178;font:600 12px system-ui;cursor:pointer">how well it finds walls ›</button>';
  const WS_ROOMS=['attic','living room','bedroom','bathroom','kitchen','Resight office'];
- const WS=[['my geometric solver',[0.870,0.556,0.842,0.750,0.800,0.737],1],
-  ['my network',[0.777,0.566,0.984,0.783,0.698,0.654],1],
-  ['Manycore SpatialLM 1.1',[0.452,0.571,0.192,0.500,0.600,0.278],0],
-  ['Manycore SpatialLM 1.0',[0.457,0.462,0.818,0.200,0.429,0.171],0],
-  ['Meta SceneScript',[0.471,0.429,0.375,0.200,0.364,0.253],0]];
+ const WS_IN=[
+  ['on the rooms’ LiDAR scans',[
+   ['my geometric solver',[0.870,0.556,0.842,0.750,0.800,0.737],1],
+   ['my network',[0.777,0.566,0.984,0.783,0.698,0.654],1],
+   ['Manycore SpatialLM 1.1',[0.452,0.571,0.192,0.500,0.600,0.278],0],
+   ['Manycore SpatialLM 1.0',[0.457,0.462,0.818,0.200,0.429,0.171],0],
+   ['Meta SceneScript',[0.471,0.429,0.375,0.200,0.364,0.253],0]]],
+  ['on point clouds rebuilt from the phone video (Depth Anything 3)',[
+   ['my geometric solver',[0.500,0.364,0.750,1.000,0.667,null],1],
+   ['my network',[0.583,0.468,0.824,1.000,0.647,null],1],
+   ['Manycore SpatialLM 1.1',[0.560,0.364,0.727,0.857,0.563,null],0],
+   ['Manycore SpatialLM 1.0',[0.526,0.429,0.800,0.857,0.600,null],0],
+   ['Meta SceneScript',[0.353,0.286,0.143,0.600,0.269,null],0]]]];
  const wsPanel=document.createElement('div');wsPanel.id='wallScores';
- wsPanel.style.cssText='position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:30;display:none;width:min(620px,calc(100% - 32px));max-height:calc(100% - 32px);overflow:auto;box-sizing:border-box;'
+ wsPanel.style.cssText='position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:30;display:none;width:min(640px,calc(100% - 32px));max-height:calc(100% - 32px);overflow:auto;box-sizing:border-box;'
   +'background:rgba(32,29,25,.97);border:1px solid #4a4336;border-radius:12px;padding:16px 16px 14px;font:13px/1.45 system-ui;color:#e8e0d2';
- const best=WS_ROOMS.map((_,j)=>Math.max(...WS.map(r=>+r[1][j].toFixed(2))));   
  const f2=v=>v.toFixed(2);
- let tb='<table style="border-collapse:collapse;font-variant-numeric:tabular-nums;width:100%;min-width:520px"><tr><th></th>'
-  +WS_ROOMS.map(r=>'<th style="font-weight:500;color:#a39a8c;padding:4px 6px;text-align:right">'+r+'</th>').join('')
-  +'<th style="font-weight:600;color:#f2c178;padding:4px 6px;text-align:right">average</th></tr>';
- for(const [nm,v,mine] of WS){
-  const avg=v.reduce((a,b)=>a+b,0)/v.length;
-  tb+='<tr style="border-top:1px solid #3a342b"><td style="padding:5px 6px;white-space:nowrap;color:'+(mine?'#f2c178':'#d9d1c3')+'">'+nm+'</td>'
-   +v.map((x,j)=>'<td style="padding:5px 6px;text-align:right;'+(+x.toFixed(2)===best[j]?'font-weight:700;color:#fff':'color:#b9b2a6')+'">'+f2(x)+'</td>').join('')
-   +'<td style="padding:5px 6px;text-align:right;font-weight:'+(mine?'600':'400')+';color:'+(mine?'#f2c178':'#b9b2a6')+'">'+f2(avg)+'</td></tr>';
- }
- tb+='</table>';
+ const wsTable=(title,WS)=>{
+  const best=WS_ROOMS.map((_,j)=>{const xs=WS.map(r=>r[1][j]).filter(x=>x!==null);return xs.length?Math.max(...xs.map(x=>+x.toFixed(2))):null;});   
+  let tb='<div style="font:600 13px system-ui;color:#e8e0d2;margin:12px 0 2px">'+title+'</div>'
+   +'<div style="overflow-x:auto"><table style="border-collapse:collapse;font-variant-numeric:tabular-nums;width:100%;min-width:540px"><tr><th></th>'
+   +WS_ROOMS.map(r=>'<th style="font-weight:500;color:#a39a8c;padding:4px 6px;text-align:right">'+r+'</th>').join('')
+   +'<th style="font-weight:600;color:#f2c178;padding:4px 6px;text-align:right">average</th></tr>';
+  for(const [nm,v,mine] of WS){
+   const got=v.filter(x=>x!==null),avg=got.reduce((a,b)=>a+b,0)/got.length;
+   tb+='<tr style="border-top:1px solid #3a342b"><td style="padding:5px 6px;white-space:nowrap;color:'+(mine?'#f2c178':'#d9d1c3')+'">'+nm+'</td>'
+    +v.map((x,j)=>x===null?'<td style="padding:5px 6px;text-align:right;color:#6f675b">–</td>'
+      :'<td style="padding:5px 6px;text-align:right;'+(+x.toFixed(2)===best[j]?'font-weight:700;color:#fff':'color:#b9b2a6')+'">'+f2(x)+'</td>').join('')
+    +'<td style="padding:5px 6px;text-align:right;font-weight:'+(mine?'600':'400')+';color:'+(mine?'#f2c178':'#b9b2a6')+'">'+f2(avg)+'</td></tr>';
+  }
+  return tb+'</table></div>';
+ };
  wsPanel.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:6px">'
   +'<div style="font:600 16px system-ui;color:#f2c178">how well it finds walls</div>'
   +'<button id="wsClose" aria-label="close" style="flex:none;width:30px;height:30px;border-radius:15px;border:1px solid #4a4336;background:#2b2620;color:#e8e0d2;font:16px system-ui;cursor:pointer">×</button></div>'
-  +'<div style="color:#cfc7b8;max-width:62ch;margin-bottom:10px">Rooms I tagged by hand, from Apple’s ARKitScenes and from my own scan at Resight; none of them was used in training. '
-  +'Each number is the share of walls found correctly (F1): a wall counts when it lies within 25 cm and 15° of a wall I tagged.</div>'
-  +'<div style="overflow-x:auto">'+tb+'</div>'
-  +'<div style="color:#cfc7b8;max-width:62ch;margin-top:10px">In almost every room my solver and my network score as high as SpatialLM and SceneScript, or higher. '
-  +'The best score in each room is in white.</div>'
-  +'<div style="color:#8f877a;font-size:12px;margin-top:8px">All five engines run on the same room scans, scored the same way, November 2026. My network: average of 3 training runs; SceneScript: average of 3 runs.</div>';
+  +'<div style="color:#cfc7b8;max-width:62ch">Rooms I tagged by hand, from Apple’s ARKitScenes and from my own scan at Resight; none of them was used in training. '
+  +'Each number is the share of walls found correctly (F1): a wall counts when it lies within 25 cm and 15° of a wall I tagged. The best score in each room is in white.</div>'
+  +wsTable(WS_IN[0][0],WS_IN[0][1])+wsTable(WS_IN[1][0],WS_IN[1][1])
+  +'<div style="color:#8f877a;font-size:12px;margin-top:4px">The Resight office was not part of the video run.</div>'
+  +'<div style="color:#cfc7b8;max-width:62ch;margin-top:10px">My network scores as high as SpatialLM and SceneScript, or higher, in every room, on both inputs.</div>'
+  +'<div style="color:#8f877a;font-size:12px;margin-top:8px">All five engines run on the same clouds, scored the same way, November 2026. My network: average of 3 training runs; SceneScript: average of 3 runs.</div>';
  const addWs=()=>{const v=document.getElementById('view');if(v){v.appendChild(wsPanel);}else setTimeout(addWs,200);};addWs();
  lg.addEventListener('click',e=>{if(e.target&&e.target.id==='wsOpen'){wsPanel.style.display='block';e.stopPropagation();}});
  wsPanel.addEventListener('click',e=>{if(e.target&&e.target.id==='wsClose')wsPanel.style.display='none';e.stopPropagation();});
