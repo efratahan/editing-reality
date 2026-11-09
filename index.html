@@ -1263,10 +1263,46 @@ let footGroup=null,partsCam=null;
  lg.innerHTML='<div style="font:600 13px system-ui;color:#f2c178;margin-bottom:4px">floor plan, from the video</div>'
   +sw('#3c382f','wall',1)+sw('#7fc4de','window',1)+sw('#e2a765','counter and cabinets')+sw('#26282b','oven')
   +sw('#f4f3ef','fridge')+sw('#a3693a','shelf')+sw('#c08b4f','chair')
-  +'<div style="margin-top:7px;color:#a39a8c;font-size:12px">lengths in metres, measured</div>';
+  +'<div style="margin-top:7px;color:#a39a8c;font-size:12px">lengths in metres, measured</div>'
+  +'<button id="wsOpen" style="margin-top:9px;padding:6px 9px;border-radius:7px;border:1px solid #6b5d45;background:#2b2620;color:#f2c178;font:600 12px system-ui;cursor:pointer">how well it finds walls ›</button>';
+ const WS_ROOMS=['attic','living room','bedroom','bathroom','kitchen','Resight office'];
+ const WS=[['my geometric solver',[0.870,0.556,0.842,0.750,0.800,0.737],1],
+  ['my network',[0.777,0.566,0.984,0.783,0.698,0.654],1],
+  ['Manycore SpatialLM 1.1',[0.452,0.571,0.192,0.500,0.600,0.278],0],
+  ['Manycore SpatialLM 1.0',[0.457,0.462,0.818,0.200,0.429,0.171],0],
+  ['Meta SceneScript',[0.471,0.429,0.375,0.200,0.364,0.253],0]];
+ const wsPanel=document.createElement('div');wsPanel.id='wallScores';
+ wsPanel.style.cssText='position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:30;display:none;width:min(620px,calc(100% - 32px));max-height:calc(100% - 32px);overflow:auto;box-sizing:border-box;'
+  +'background:rgba(32,29,25,.97);border:1px solid #4a4336;border-radius:12px;padding:16px 16px 14px;font:13px/1.45 system-ui;color:#e8e0d2';
+ const best=WS_ROOMS.map((_,j)=>Math.max(...WS.map(r=>+r[1][j].toFixed(2))));   
+ const f2=v=>v.toFixed(2);
+ let tb='<table style="border-collapse:collapse;font-variant-numeric:tabular-nums;width:100%;min-width:520px"><tr><th></th>'
+  +WS_ROOMS.map(r=>'<th style="font-weight:500;color:#a39a8c;padding:4px 6px;text-align:right">'+r+'</th>').join('')
+  +'<th style="font-weight:600;color:#f2c178;padding:4px 6px;text-align:right">average</th></tr>';
+ for(const [nm,v,mine] of WS){
+  const avg=v.reduce((a,b)=>a+b,0)/v.length;
+  tb+='<tr style="border-top:1px solid #3a342b"><td style="padding:5px 6px;white-space:nowrap;color:'+(mine?'#f2c178':'#d9d1c3')+'">'+nm+'</td>'
+   +v.map((x,j)=>'<td style="padding:5px 6px;text-align:right;'+(+x.toFixed(2)===best[j]?'font-weight:700;color:#fff':'color:#b9b2a6')+'">'+f2(x)+'</td>').join('')
+   +'<td style="padding:5px 6px;text-align:right;font-weight:'+(mine?'600':'400')+';color:'+(mine?'#f2c178':'#b9b2a6')+'">'+f2(avg)+'</td></tr>';
+ }
+ tb+='</table>';
+ wsPanel.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:6px">'
+  +'<div style="font:600 16px system-ui;color:#f2c178">how well it finds walls</div>'
+  +'<button id="wsClose" aria-label="close" style="flex:none;width:30px;height:30px;border-radius:15px;border:1px solid #4a4336;background:#2b2620;color:#e8e0d2;font:16px system-ui;cursor:pointer">×</button></div>'
+  +'<div style="color:#cfc7b8;max-width:62ch;margin-bottom:10px">Rooms I tagged by hand, from Apple’s ARKitScenes and from my own scan at Resight; none of them was used in training. '
+  +'Each number is the share of walls found correctly (F1): a wall counts when it lies within 25 cm and 15° of a wall I tagged.</div>'
+  +'<div style="overflow-x:auto">'+tb+'</div>'
+  +'<div style="color:#cfc7b8;max-width:62ch;margin-top:10px">In almost every room my solver and my network score as high as SpatialLM and SceneScript, or higher. '
+  +'The best score in each room is in white.</div>'
+  +'<div style="color:#8f877a;font-size:12px;margin-top:8px">All five engines run on the same room scans, scored the same way, November 2026. My network: average of 3 training runs; SceneScript: average of 3 runs.</div>';
+ const addWs=()=>{const v=document.getElementById('view');if(v){v.appendChild(wsPanel);}else setTimeout(addWs,200);};addWs();
+ lg.addEventListener('click',e=>{if(e.target&&e.target.id==='wsOpen'){wsPanel.style.display='block';e.stopPropagation();}});
+ wsPanel.addEventListener('click',e=>{if(e.target&&e.target.id==='wsClose')wsPanel.style.display='none';e.stopPropagation();});
+ ['pointerdown','touchstart','wheel'].forEach(t=>wsPanel.addEventListener(t,e=>e.stopPropagation(),{passive:true}));
  const add_=()=>{const v=document.getElementById('view');if(v)v.appendChild(lg);else setTimeout(add_,200);};add_();
  setInterval(()=>{const ov=document.getElementById('partsGrid')||null;
-  lg.style.display=(typeof PARTS_MODE!=='undefined'&&PARTS_MODE===1&&!(typeof EDIT_ON!=='undefined'&&EDIT_ON)&&!document.querySelector('[data-parts-open="1"]'))?'block':'none';},250);
+  lg.style.display=(typeof PARTS_MODE!=='undefined'&&PARTS_MODE===1&&!(typeof EDIT_ON!=='undefined'&&EDIT_ON)&&!document.querySelector('[data-parts-open="1"]'))?'block':'none';
+  if(lg.style.display==='none')wsPanel.style.display='none';},250);
 })();
 function buildFootprint(){
  footGroup=new THREE.Group(); footGroup.visible=false; scene.add(footGroup);
@@ -1587,7 +1623,7 @@ const TILE_LINE={
  edit:'move a wall and its furniture follows; delete an object'};
 const HOW=[
  ['From video to a measured room','I calibrated the phone\u2019s camera, so the model works with the true lens. Depth Anything 3 (pretrained) then gives every frame its pose and depth. Gravity comes from the floor and one known length sets the scale. The room becomes a top-down map.'],
- ['Floor plan','My network, trained from scratch, finds walls, doors and windows in that map, all from one shared model. It was trained on several datasets together: Meta\u2019s synthetic Aria Synthetic Environments, Apple\u2019s ARKitScenes, ScanNet and CAD-Estate. I evaluated it on real rooms it never saw in training, against Meta\u2019s SceneScript and Manycore\u2019s SpatialLM, and it found the walls more accurately than both. My geometric solver runs beside it.'],
+ ['Floor plan','My network, trained from scratch, finds walls, doors and windows in that map, all from one shared model. It was trained on several datasets together: Meta\u2019s synthetic Aria Synthetic Environments, Apple\u2019s ARKitScenes, ScanNet and CAD-Estate. I evaluated it against Meta\u2019s SceneScript and Manycore\u2019s SpatialLM on rooms I tagged by hand, none of them seen in training: in almost every room it finds walls as well as both, or better (the scores, room by room, are on the floor plan). My geometric solver runs beside it.'],
  ['Miniature','The miniature is the room\u2019s geometry: walls, openings and furniture as clean, measured shapes. It is what makes the room editable, and it gives its geometry to every other part: the big model, the clean room, the style and the editor all stand on it. Furniture comes from my object detector, trained on Apple\u2019s ARKitScenes.'],
  ['Big model','The video on my calibrated camera, with Depth Anything 3 poses and depth. A gaussian splat fitted straight to the video fills the room with fog and floaters, so instead every surface of the miniature is baked from the frames that really see it; what no frame saw is filled, and Depth Anything V2 gives the details depth.'],
  ['Clean room','The miniature finished as a room, lit by the light measured in the video.'],
