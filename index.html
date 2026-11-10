@@ -2105,12 +2105,14 @@ renderer.domElement.addEventListener('pointerdown',e=>{
  const fullAsp=cam.aspect;cam.aspect=(r.width*0.62)/r.height;cam.updateProjectionMatrix();
  const rc=new THREE.Raycaster();rc.setFromCamera({x:nx,y:ny},cam);
  cam.aspect=fullAsp;cam.updateProjectionMatrix();
- const hits=rc.intersectObjects(twin.children,true).filter(h=>h.object.visible);
- const first=hits.length?hits[0].distance:Infinity;let f=null,best=Infinity;
+ const _shown=o=>{for(;o;o=o.parent)if(!o.visible)return false;return true;};   
+ const hits=rc.intersectObjects(twin.children,true).filter(h=>_shown(h.object));
+ const first=hits.length?hits[0].distance:Infinity;let f=null,best=Infinity,fv=Infinity;
  for(const g of KITCHEN_SCENE.furniture){                       
   const bx=new THREE.Box3(new THREE.Vector3(g.x-g.sx/2-0.02,g.y-g.sy/2-0.02,g.z0-0.02),new THREE.Vector3(g.x+g.sx/2+0.02,g.y+g.sy/2+0.02,g.z0+g.sz+0.02));
   const pt=rc.ray.intersectBox(bx,new THREE.Vector3());if(!pt)continue;
-  const d=pt.distanceTo(rc.ray.origin);if(d<best&&d<=first+0.06){best=d;f=g;}}
+  const d=pt.distanceTo(rc.ray.origin),v=g.sx*g.sy*g.sz;if(d>first+0.06)continue;
+  if(d<best-0.04||(Math.abs(d-best)<=0.04&&v<fv)){best=Math.min(best,d);f=g;fv=v;}}   
  const hq=hits.length?hits[0].point:null, wq=(!f&&hq)?ED.wallNear([hq.x,hq.y],0.15):null;
  if(f&&f===ED.sel){edTouchDown={f,x:e.clientX,y:e.clientY};e.stopImmediatePropagation();e.preventDefault();return;}
  if(wq&&wq===ED.selWall){edWallDrag={W:wq,x:e.clientX,y:e.clientY,h:[hq.x,hq.y,hq.z],left:true,done:0,moved:false};e.stopImmediatePropagation();e.preventDefault();return;}
@@ -2162,7 +2164,7 @@ addEventListener('pointerup',e=>{
   if(!was.moved){                       
    const {best,p}=edMiniPick(e);
    const now=performance.now(),L=edLastTapR;      
-   if(!(L&&now-L.t<450&&Math.hypot(e.clientX-L.x,e.clientY-L.y)<40)){edLastTapR={x:e.clientX,y:e.clientY,t:now};e.stopImmediatePropagation();return;}
+   if(!(L&&now-L.t<650&&Math.hypot(e.clientX-L.x,e.clientY-L.y)<60)){edLastTapR={x:e.clientX,y:e.clientY,t:now};e.stopImmediatePropagation();return;}
    edLastTapR=null;
    if(best){ED.setSel(best);}
    else{
@@ -2247,9 +2249,9 @@ let edTouchDown=null,edTapDown=null;
 let edLastTap=null;                               
 addEventListener('pointerup',e=>{if(!EDIT_ON||!edTapDown)return;const d=edTapDown;edTapDown=null;
  const now=performance.now();
- if(ED.carry||Math.hypot(e.clientX-d.x,e.clientY-d.y)>15||now-d.t>600){edLastTap=null;return;}   
+ if(ED.carry||Math.hypot(e.clientX-d.x,e.clientY-d.y)>22||now-d.t>700){edLastTap=null;return;}   
  const L=edLastTap;
- if(L&&now-L.t<450&&Math.hypot(d.x-L.x,d.y-L.y)<40){edLastTap=null;const ff=d.f||L.f,ww=d.w||L.w;if(ff)ED.setSel(ff);else if(ww)ED.setSelWall(ww);else ED.setSel(null);}
+ if(L&&now-L.t<650&&Math.hypot(d.x-L.x,d.y-L.y)<60){edLastTap=null;const ff=d.f||L.f,ww=d.w||L.w;if(ff)ED.setSel(ff);else if(ww)ED.setSelWall(ww);else ED.setSel(null);}
  else edLastTap={f:d.f,x:d.x,y:d.y,t:now};},true);
 addEventListener('pointermove',e=>{
  if(!EDIT_ON||!edTouchDown||ED.carry)return;
