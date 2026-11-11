@@ -1,5 +1,15 @@
-# Public portfolio page. Open to search engines and on-demand assistant fetchers.
-User-agent: *
+# Shared by link only. Not for search indexing.
+# On-demand fetchers (a person pastes the link and asks the assistant to read it) may fetch.
+
+User-agent: ChatGPT-User
 Allow: /
 
-Sitemap: https://efratahan.github.io/editing-reality/sitemap.xml
+User-agent: Claude-User
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+# Everything else, including search crawlers and model-training crawlers.
+User-agent: *
+Disallow: /
